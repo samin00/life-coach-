@@ -43,6 +43,7 @@ cd server && cp .env.example .env && npx prisma migrate dev
 | `ANTHROPIC_API_KEY` | empty | Anthropic key; empty -> fallback data |
 | `ANTHROPIC_MODEL` | `claude-sonnet-4-20250514` | Anthropic model |
 | `CORS_ORIGIN` | `http://localhost:5173` | Allowed browser origin |
+| `TRUST_PROXY` | `false` | Express `trust proxy`: `false`, a hop count (e.g. `1`), or a string like `loopback` / CIDR list |
 
 The client has no env vars.
 

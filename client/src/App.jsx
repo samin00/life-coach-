@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import * as api from "./api/client.js";
 import { C, FONT, GLOBAL_CSS, S } from "./styles/tokens.js";
 import { StepIndicator } from "./components/StepIndicator.jsx";
@@ -35,16 +35,35 @@ export default function App() {
   const [answer, setAnswer] = useState("");
   const [nodes, setNodesState] = useState([]);
   const [goalMode, setGoalMode] = useState(null);
-  const [suggestions, setSuggestions] = useState(null);
   const [suggestLoading, setSuggestLoading] = useState(false);
   const [selectedGoal, setSelectedGoal] = useState(null);
   const [customGoal, setCustomGoal] = useState("");
   const [goal, setGoal] = useState(null);
   const [plan, setPlan] = useState(null);
 
+  // Suggestions live on the analysis; the server nulls them on every PATCH /api/analysis.
+  const suggestions = analysis ? analysis.suggestions || null : null;
+  const nodesRef = useRef(nodes);
+  nodesRef.current = nodes;
+  const analyzing = useRef(false);
+
   const fail = (e) => setError(errMsg(e));
-  const interestSaver = useDebouncedSave((patch) => api.updateAnalysis(patch).catch(fail));
-  const progressSaver = useDebouncedSave((patch) => api.updateProgress(patch).catch(fail));
+  const rethrow = (e) => {
+    fail(e);
+    throw e;
+  };
+  const applyAnalysis = (a) => {
+    setAnalysis(a);
+    if (!a || !a.suggestions) setSelectedGoal(null);
+  };
+  const interestSaver = useDebouncedSave(
+    (patch) => api.updateAnalysis(patch).then(applyAnalysis, rethrow),
+    (patch) => api.updateAnalysis(patch, { keepalive: true })
+  );
+  const progressSaver = useDebouncedSave(
+    (patch) => api.updateProgress(patch).catch(rethrow),
+    (patch) => api.updateProgress(patch, { keepalive: true })
+  );
 
   // Restore everything from GET /api/state and jump to the right step.
   const load = useCallback(async () => {
@@ -59,7 +78,6 @@ export default function App() {
       setAnalysis(a);
       setAnswer(a && a.answer ? a.answer : "");
       setNodesState(a ? layoutNodes(a.interests) : []);
-      setSuggestions(a && a.suggestions ? a.suggestions : null);
       setSuggestLoading(false);
       setGoal(st.goal);
       setPlan(st.plan);
@@ -100,6 +118,8 @@ export default function App() {
   }
 
   function runAnalyze() {
+    if (analyzing.current) return; // StrictMode double-mount would otherwise POST twice
+    analyzing.current = true;
     setAnalysis(null);
     setStep(2);
     return run(
@@ -108,10 +128,11 @@ export default function App() {
         setAnalysis(a);
         setAnswer(a.answer || "");
         setNodesState(layoutNodes(a.interests));
-        setSuggestions(a.suggestions || null);
       },
       () => setStep(1)
-    );
+    ).finally(() => {
+      analyzing.current = false;
+    });
   }
   async function startAnalysis(accuracy) {
     const ok = await run(async () => {
@@ -124,17 +145,16 @@ export default function App() {
     run(async () => {
       const a = await api.updateAnalysis({ answer: skip ? null : answer.trim() });
       if (skip) setAnswer("");
-      setAnalysis(a);
+      applyAnalysis(a);
       setStep(3);
     });
 
   // setNodes(updater, persistDelay): delay undefined = local only (drag), 0 = now, >0 = debounced.
   const setNodes = (updater, delay) => {
-    setNodesState((prev) => {
-      const next = typeof updater === "function" ? updater(prev) : updater;
-      if (delay !== undefined) queueMicrotask(() => interestSaver.schedule({ interests: toServerNodes(next) }, delay));
-      return next;
-    });
+    const next = typeof updater === "function" ? updater(nodesRef.current) : updater;
+    nodesRef.current = next;
+    setNodesState(next);
+    if (delay !== undefined) interestSaver.schedule({ interests: toServerNodes(next) }, delay);
   };
   const toGoals = () =>
     run(async () => {
@@ -150,7 +170,7 @@ export default function App() {
     setError(null);
     try {
       const r = await withMinDelay(api.suggestGoals(), 1500);
-      setSuggestions(r.goals);
+      setAnalysis((a) => ({ ...a, suggestions: r.goals }));
       setSelectedGoal(null);
     } catch (e) {
       fail(e);
@@ -177,7 +197,7 @@ export default function App() {
   const onProgress = (patch, delay) => progressSaver.schedule(patch, delay);
   const startOver = () =>
     run(async () => {
-      await progressSaver.flush();
+      await progressSaver.flush().catch(() => {});
       await api.reset();
       await load();
     });

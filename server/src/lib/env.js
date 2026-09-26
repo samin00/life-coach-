@@ -14,6 +14,16 @@ const EnvSchema = z.object({
   ANTHROPIC_API_KEY: z.string().optional().default(""),
   ANTHROPIC_MODEL: z.string().default("claude-sonnet-4-20250514"),
   CORS_ORIGIN: z.string().default("http://localhost:5173"),
+  // Express "trust proxy": "false" (default), a hop count, or a string such as "loopback" or a CIDR list.
+  TRUST_PROXY: z
+    .string()
+    .default("false")
+    .transform((v) => {
+      const t = v.trim();
+      if (t === "" || t.toLowerCase() === "false") return false;
+      if (t.toLowerCase() === "true") return true;
+      return /^\d+$/.test(t) ? Number(t) : t;
+    }),
 });
 
 const parsed = EnvSchema.safeParse(process.env);

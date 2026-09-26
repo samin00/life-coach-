@@ -8,6 +8,7 @@ import { providerInfo } from "./services/ai/index.js";
 
 const app = express();
 app.disable("x-powered-by");
+app.set("trust proxy", env.TRUST_PROXY);
 app.use(cors({ origin: env.CORS_ORIGIN.split(",").map((s) => s.trim()) }));
 app.use(express.json({ limit: "1mb" }));
 

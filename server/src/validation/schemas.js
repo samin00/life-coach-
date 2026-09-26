@@ -32,7 +32,17 @@ export const InterestNode = z.object({
 
 export const AnalysisPatchBody = z
   .object({
-    interests: z.array(InterestNode).max(100).optional(),
+    interests: z
+      .array(InterestNode)
+      .max(100)
+      .superRefine((nodes, ctx) => {
+        const seen = new Set();
+        nodes.forEach((n, i) => {
+          if (seen.has(n.id)) ctx.addIssue({ code: z.ZodIssueCode.custom, path: [i, "id"], message: `Duplicate interest id "${n.id}"` });
+          seen.add(n.id);
+        });
+      })
+      .optional(),
     answer: z.string().max(5000).nullable().optional(),
   })
   .strict()
@@ -55,4 +65,5 @@ export const ProgressPatchBody = z
     monthlyDone: five(z.boolean()).optional(),
     monthlyProgress: five(z.number().min(0).max(100)).optional(),
   })
-  .strict();
+  .strict()
+  .refine((b) => Object.values(b).some((v) => v !== undefined), "Provide at least one progress field");
