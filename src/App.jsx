@@ -28,17 +28,41 @@ button, input, textarea, select { border-radius: 0; }
 `;
 
 /* ============================================================
-   CLAUDE API
+   AI PROVIDER (anthropic | openai)
    ============================================================ */
-const API_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY;
+const PROVIDER = (import.meta.env.VITE_AI_PROVIDER || "anthropic").toLowerCase();
+const ANTHROPIC_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY;
+const OPENAI_KEY = import.meta.env.VITE_OPENAI_API_KEY;
+const OPENAI_MODEL = import.meta.env.VITE_OPENAI_MODEL || "gpt-4o-mini";
 
-async function askClaude(prompt, maxTokens = 1000) {
-  if (!API_KEY) throw new Error("no key");
+function parseJson(text) {
+  return JSON.parse(text.replace(/```json|```/g, "").trim());
+}
+
+async function askOpenAI(prompt, maxTokens) {
+  if (!OPENAI_KEY) throw new Error("no key");
+  const res = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${OPENAI_KEY}` },
+    body: JSON.stringify({
+      model: OPENAI_MODEL,
+      max_tokens: maxTokens,
+      response_format: { type: "json_object" },
+      messages: [{ role: "user", content: prompt }],
+    }),
+  });
+  if (!res.ok) throw new Error("HTTP " + res.status);
+  const data = await res.json();
+  return parseJson(data.choices[0].message.content);
+}
+
+async function askAnthropic(prompt, maxTokens) {
+  if (!ANTHROPIC_KEY) throw new Error("no key");
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "x-api-key": API_KEY,
+      "x-api-key": ANTHROPIC_KEY,
       "anthropic-version": "2023-06-01",
       "anthropic-dangerous-direct-browser-access": "true",
     },
@@ -51,7 +75,11 @@ async function askClaude(prompt, maxTokens = 1000) {
   if (!res.ok) throw new Error("HTTP " + res.status);
   const data = await res.json();
   const text = data.content.map((c) => c.text || "").join("");
-  return JSON.parse(text.replace(/```json|```/g, "").trim());
+  return parseJson(text);
+}
+
+async function askClaude(prompt, maxTokens = 1000) {
+  return PROVIDER === "openai" ? askOpenAI(prompt, maxTokens) : askAnthropic(prompt, maxTokens);
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
