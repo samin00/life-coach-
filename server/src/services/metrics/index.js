@@ -70,6 +70,7 @@ export function metricsFromSelfReport(sr) {
   return {
     selfReported: true,
     estHoursPerDay: hours,
+    estHoursPerActiveDay: hours,
     lateNightShare,
     bedtime: sr.bedtime || null,
     wakeTime: sr.wakeTime || null,
@@ -107,7 +108,7 @@ export function metricsSummaryText(m) {
     if (m.worstHabits && m.worstHabits.length) L.push(`Self-named worst habits: ${m.worstHabits.join("; ")}.`);
     return L.join("\n");
   }
-  L.push(`~${m.estHoursPerDay} h/day across ${m.activeDays} active days (of a ${m.rangeDays}-day range, ${m.firstDay} to ${m.lastDay}).`);
+  L.push(`~${m.estHoursPerActiveDay} h per active day across ${m.activeDays} active days (~${m.estHoursPerDay} h/day over the ${m.rangeDays}-day range, ${m.firstDay} to ${m.lastDay}).`);
   L.push(`${m.totalEvents} events, ${m.eventsPerActiveDay} per active day.`);
   L.push(`${pct(m.lateNightShare)} of activity after midnight (00:00-05:00); ${pct(m.eveningShare)} between 21:00 and 24:00.`);
   if (m.sessions) L.push(`Longest binge ${fmtMinutes(m.sessions.longestSessionMinutes)} on ${m.sessions.longestSessionDate}; ${m.sessions.count} sessions averaging ${Math.round(m.sessions.avgLength)} min.`);

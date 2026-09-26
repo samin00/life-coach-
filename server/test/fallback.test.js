@@ -2,8 +2,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { generateWatchHistory } from "./fixtures/generate.js";
 import { extractMetrics } from "../src/services/metrics/index.js";
-import { buildAnalysisFromMetrics, buildGoalsFrom, buildPlanFrom, skeletonFor, contentMinutesFor, makeFallbackPlan } from "../src/services/ai/fallback.js";
-import { mergePlan, normalizeAnalysis } from "../src/services/ai/normalize.js";
+import { buildAnalysisFromMetrics, buildGoalsFrom, buildPlanFrom, skeletonFor, contentMinutesFor, makeFallbackPlan, defaultTarget } from "../src/services/ai/fallback.js";
+import { mergePlan, normalizeAnalysis, normalizeTarget } from "../src/services/ai/normalize.js";
 import { analysisPrompt, planPrompt } from "../src/services/ai/prompts.js";
 
 const metricsOf = (p) => extractMetrics([{ name: "watch-history.json", text: JSON.stringify(generateWatchHistory(p)) }], "youtube");
@@ -22,7 +22,8 @@ test("rule-based analysis varies with the data", () => {
   assert.ok(aDay.habits.length >= 1);
   assert.ok(aLate.interests.some((n) => n.tier === "primary" && n.label === "Coding"));
   assert.ok(aDay.interests.some((n) => n.tier === "primary" && n.label === "Cooking"));
-  assert.equal(aLate.screenTimeTargetHoursPerDay, Math.max(1, Math.round(mLate.estHoursPerDay * 0.7 * 10) / 10));
+  assert.equal(aLate.screenTimeTargetHoursPerDay, Math.round(Math.max(1, mLate.estHoursPerActiveDay * 0.7) * 4) / 4);
+  assert.ok(aDay.screenTimeTargetHoursPerDay <= mDay.estHoursPerActiveDay, `day target ${aDay.screenTimeTargetHoursPerDay} > ${mDay.estHoursPerActiveDay}`);
 });
 
 test("static fallback only without metrics and text; manual text still varies", () => {
@@ -98,6 +99,31 @@ test("normalizeAnalysis defaults habits/target from metrics", () => {
   const a = normalizeAnalysis({ question: "q", insight: "i", interests: { primary: ["X"], secondary: [], emerging: [] }, habits: [] }, mLate);
   assert.equal(a.habits[0].name, "Late-night scrolling");
   assert.ok(a.screenTimeTargetHoursPerDay >= 1);
+});
+
+test("target never exceeds current use (default and model value)", () => {
+  assert.equal(defaultTarget({ estHoursPerActiveDay: 0.6 }), 0.5);
+  assert.equal(defaultTarget({ estHoursPerActiveDay: 1 }), 1);
+  assert.equal(defaultTarget({ estHoursPerActiveDay: 1.2 }), 1);
+  assert.equal(defaultTarget({ estHoursPerActiveDay: 5 }), 3.5);
+  assert.equal(defaultTarget({ estHoursPerDay: 3, selfReported: true }), 2);
+  assert.equal(defaultTarget(null), 2);
+  assert.equal(normalizeTarget(1, { estHoursPerActiveDay: 0.6 }), 0.5);
+  assert.equal(normalizeTarget(0.5, { estHoursPerActiveDay: 0.6 }), 0.5);
+  assert.equal(normalizeTarget(0.6, { estHoursPerActiveDay: 0.6 }), 0.5);
+  assert.equal(normalizeTarget(2, { estHoursPerActiveDay: 4 }), 2);
+  assert.equal(normalizeTarget(3, null), 3);
+  const aD = normalizeAnalysis({ question: "q", insight: "i", interests: { primary: ["X"], secondary: [], emerging: [] }, habits: [], screenTimeTargetHoursPerDay: 1 }, mDay);
+  assert.ok(aD.screenTimeTargetHoursPerDay <= mDay.estHoursPerActiveDay);
+});
+
+test("content window under 45 min states the target in its note", () => {
+  const p = buildPlanFrom(aDay, goal, mDay);
+  const cw = p.daily.find((b) => b.tag === "CONTENT WINDOW");
+  assert.equal(cw.duration, 45);
+  const min = Math.round(aDay.screenTimeTargetHoursPerDay * 60);
+  assert.ok(min < 45);
+  assert.match(cw.note, new RegExp(`${aDay.screenTimeTargetHoursPerDay} h/day target = ${min} min`));
 });
 
 test("prompts include THE NUMBERS and the strict instruction", () => {

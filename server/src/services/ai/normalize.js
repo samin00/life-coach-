@@ -1,6 +1,6 @@
 // Normalisation — ported from the original client (buildNodes, strList, mergePlan).
 import { randomUUID } from "node:crypto";
-import { skeletonFor, WEEKLY_CATS, MONTHLY_CATS, defaultTarget, habitsFromMetrics } from "./fallback.js";
+import { skeletonFor, WEEKLY_CATS, MONTHLY_CATS, defaultTarget, currentHours, habitsFromMetrics } from "./fallback.js";
 
 export const isStr = (v) => typeof v === "string" && v.trim().length > 0;
 export const strList = (v, max) => (Array.isArray(v) ? v.filter(isStr).map((s) => s.trim()).slice(0, max) : []);
@@ -61,12 +61,14 @@ export function normalizeHabits(list, metrics) {
   return valid.length ? valid : habitsFromMetrics(metrics);
 }
 
-/** Model's target if sane (0.5-12 h, and not above current usage), else max(1, est*0.7). */
+/** Model's target if sane (0.25-12 h) and never above current use (when known), else defaultTarget. */
 export function normalizeTarget(v, metrics) {
   const n = Number(v);
-  const est = metrics && Number(metrics.estHoursPerDay);
-  if (Number.isFinite(n) && n >= 0.5 && n <= 12 && (!est || n <= Math.max(est, 1))) return Math.round(n * 10) / 10;
-  return defaultTarget(metrics);
+  const cur = currentHours(metrics);
+  if (!Number.isFinite(n) || n < 0.25 || n > 12 || (cur && n > cur)) return defaultTarget(metrics);
+  let r = Math.round(n * 4) / 4;
+  if (cur && r > cur) r = Math.floor(cur * 4) / 4;
+  return Math.max(0.25, r);
 }
 
 export function normalizeGoals(r) {

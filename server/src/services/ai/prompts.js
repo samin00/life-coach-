@@ -75,7 +75,7 @@ Generate JSON:
   "screenTimeTargetHoursPerDay": ${target}
 }
 "habits": 1-4 items, worst first. Severity guide: after-midnight share >20% high, >10% medium; >4 h/day high, >2.5 h/day medium; a session >180 min high; Shorts >50% medium; 30+ day streak with no zero-day medium.
-"screenTimeTargetHoursPerDay": a realistic FIRST-WEEK target in hours/day. Default ${target} (= max(1, current h/day x 0.7)); only change it with a reason.
+"screenTimeTargetHoursPerDay": a realistic FIRST-WEEK target in hours/day. Default ${target} (current <= 1 h: hold at current; else max(1, current x 0.7), rounded to 0.25). Never above current use; only change it with a reason.
 The question and insight must quote at least one number from THE NUMBERS when present.
 Interest labels must be short (1-3 words each).
 Respond with JSON only. No markdown, no preamble.`;

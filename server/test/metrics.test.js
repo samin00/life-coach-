@@ -19,6 +19,9 @@ test("fixture is ~600 events across ~45 days", () => {
 test("late-night fixture shows late-night skew, binges and shorts", () => {
   assert.ok(mLate.lateNightShare > 0.2, `lateNightShare ${mLate.lateNightShare}`);
   assert.ok(mLate.estHoursPerDay > 0);
+  // session-based: the 4h53m binge history must no longer read as ~1.5 h (rounds to 2.0; raw 2.016)
+  assert.ok(mLate.estHoursPerActiveDay >= 2, `late h/active day ${mLate.estHoursPerActiveDay}`);
+  assert.ok(mLate.estHoursPerActiveDay >= mLate.estHoursPerDay);
   assert.ok(mLate.sessions.longestSessionMinutes > 120);
   assert.match(mLate.sessions.longestSessionDate, /^\d{4}-\d{2}-\d{2}$/);
   assert.equal(mLate.topChannels[0].name, "Fireship");
@@ -34,6 +37,20 @@ test("daytime fixture differs", () => {
   assert.ok(mDay.lateNightShare < 0.05);
   assert.ok(mDay.estHoursPerDay < mLate.estHoursPerDay);
   assert.notEqual(mDay.peakHour, mLate.peakHour);
+});
+
+test("estimate: range divides more than active days; single-event session gets only its tail credit", () => {
+  const t = (s) => Date.parse(s);
+  const m = computeMetrics([
+    { ts: t("2026-01-01T10:00:00Z"), platform: "youtube", kind: "long" },
+    { ts: t("2026-01-01T10:25:00Z"), platform: "youtube", kind: "long" },
+    { ts: t("2026-01-01T10:50:00Z"), platform: "instagram", kind: "like" },
+    { ts: t("2026-01-10T10:00:00Z"), platform: "instagram", kind: "like" },
+  ]);
+  // session 1: 50 + 0.3; session 2: 0.3 -> 50.6 min; 2 active days, 10-day range
+  assert.equal(m.estHoursPerActiveDay, Math.round((50.6 / 2 / 60) * 10) / 10);
+  assert.equal(m.estHoursPerDay, Math.round((50.6 / 10 / 60) * 10) / 10);
+  assert.match(metricsSummaryText(m), /h per active day .*10-day range/);
 });
 
 test("computeMetrics: sessions, streak, shares on a hand-made list", () => {
@@ -53,13 +70,15 @@ test("computeMetrics: sessions, streak, shares on a hand-made list", () => {
   assert.equal(m.eveningShare, 0.5);
   assert.equal(m.shortsShare, 0.25);
   assert.equal(m.topChannels[0].name, "A");
-  assert.equal(m.estHoursPerDay, Math.round(((8 * 3 + 0.75) / 3 / 60) * 10) / 10);
+  // sessions: 23:00-23:20 + 8 (long tail) = 28; lone short 0.75; lone long 8 -> 36.75 min over 3 active / 3 range days
+  assert.equal(m.estHoursPerActiveDay, Math.round((36.75 / 3 / 60) * 10) / 10);
+  assert.equal(m.estHoursPerDay, Math.round((36.75 / 3 / 60) * 10) / 10);
 });
 
 test("summary text: 8-12 lines with numbers", () => {
   const lines = metricsSummaryText(mLate).split("\n");
   assert.ok(lines.length >= 8 && lines.length <= 12, `${lines.length} lines`);
-  assert.match(lines.join("\n"), /h\/day across \d+ active days/);
+  assert.match(lines.join("\n"), /h per active day across \d+ active days \(~[\d.]+ h\/day over the \d+-day range/);
   assert.match(lines.join("\n"), /after midnight/);
   assert.match(lines.join("\n"), /Longest binge \d+h\d{2}m on/);
   assert.match(lines.join("\n"), /Top channels: Fireship/);

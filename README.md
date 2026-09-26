@@ -8,7 +8,8 @@ When you upload exports, the server parses them (`server/src/services/metrics/`,
 
 | Metric | Meaning |
 |---|---|
-| `estHoursPerDay` | Estimated screen time per *active* day (see assumptions below) |
+| `estHoursPerActiveDay` | Estimated screen time per *active* day, from session durations (see assumptions below) |
+| `estHoursPerDay` | Same total spread over the whole range (first to last event, min 1 day) |
 | `rangeDays`, `activeDays`, `totalEvents`, `eventsPerActiveDay` | Span of the export and how many days had any activity |
 | `lateNightShare` | Share of events between 00:00 and 05:00 |
 | `eveningShare`, `weekendShare` | Share 21:00-24:00; share on Saturday/Sunday |
@@ -20,7 +21,7 @@ When you upload exports, the server parses them (`server/src/services/metrics/`,
 | `lastActivityHour` | Median time of the last event per day (day boundary 05:00) |
 | `peakHour`, `byHour[24]`, `byWeekday[7]` | Hour / weekday histograms (weekday 0 = Sunday) |
 
-**Assumptions** (exports record when something started, never for how long): YouTube long-form watch = 8 min, YouTube Short = 0.75 min, Instagram post/video impression = 0.75 min, like or save = 0.3 min. A session's length is its span plus the cost of its last event. UTC timestamps are shifted by the browser's UTC offset (sent as `tzOffsetMin`); without it they are treated as local.
+**Assumptions** (exports record when something started, never for how long): YouTube long-form watch = 8 min, YouTube Short = 0.75 min, Instagram post/video impression = 0.75 min, like or save = 0.3 min. These are *tail credits*: screen time is summed over sessions (events split by gaps > 30 min), each lasting its span (last minus first event) plus the tail credit of its last event; a single-event session counts only its tail credit. `estHoursPerActiveDay` divides the total by active days, `estHoursPerDay` by the range. UTC timestamps are shifted by the browser's UTC offset (sent as `tzOffsetMin`); without it they are treated as local.
 
 **Export instructions** (parsing is best-effort; unknown files are ignored):
 - YouTube: Google Takeout -> *YouTube and YouTube Music* -> history -> `watch-history.json` (or `watch-history.html`). `search-history.json` is counted.
@@ -28,7 +29,7 @@ When you upload exports, the server parses them (`server/src/services/metrics/`,
 
 Manual mode also takes a self-report (hours/day, bedtime, wake time, 3 worst habits). The server builds a minimal metrics object from it and flags it `selfReported`.
 
-The analysis adds `habits` (1-4, each with severity and evidence) and a first-week `screenTimeTargetHoursPerDay` (default `max(1, estHoursPerDay x 0.7)`). The plan's CONTENT WINDOW equals that target (45-180 min). Later blocks shift, and FREE TIME shrinks (then EVENING, then AFTERNOON) so that sleep still starts at 21:00. Heavy late-night use (> 20%) adds phone-out-of-the-bedroom tasks to WIND DOWN and SLEEP. A session over 120 min adds a hard binge cap. Weekly and monthly goals always include a screen-time cap.
+The analysis adds `habits` (1-4, each with severity and evidence) and a first-week `screenTimeTargetHoursPerDay` (default: if current use (`estHoursPerActiveDay`) is at most 1 h, hold it; otherwise `max(1, current x 0.7)`; rounded to 0.25 h and never above current use, including a model-proposed value). The plan's CONTENT WINDOW equals that target (45-180 min); when the target is under 45 min the block note states it explicitly. Later blocks shift, and FREE TIME shrinks (then EVENING, then AFTERNOON) so that sleep still starts at 21:00. Heavy late-night use (> 20%) adds phone-out-of-the-bedroom tasks to WIND DOWN and SLEEP. A session over 120 min adds a hard binge cap. Weekly and monthly goals always include a screen-time cap.
 
 **With no AI key**, the analysis, goals and plan are rule-based from your metrics (`services/ai/fallback.js`), so different data gives different output. The static demo output is used only when there are no metrics and no text at all.
 

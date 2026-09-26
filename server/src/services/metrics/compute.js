@@ -4,9 +4,13 @@
 //          platform: "youtube"|"instagram", kind: "long"|"short"|"impression"|"like"|"save",
 //          channel?: string, title?: string }
 //
-// Time-cost assumptions (minutes per event) used for estHoursPerDay and session lengths:
-//   YouTube long-form watch 8 min, YouTube Short 0.75 min, Instagram impression 0.75 min,
-//   like / save 0.3 min. Exports only record a start timestamp, never a duration.
+// Screen time is estimated from sessions (events split by gaps > 30 min), not by summing a
+// per-event constant. Session duration = (last event - first event) + a tail credit for the final
+// event, whose own duration is unknown; a single-event session counts only its tail credit.
+// Tail credits (minutes): YouTube long-form watch 8, YouTube Short 0.75, Instagram impression 0.75,
+// like / save 0.3. Exports only record a start timestamp, never a duration.
+//   estHoursPerActiveDay = sum(session durations) / activeDays
+//   estHoursPerDay       = sum(session durations) / rangeDays (first to last event, min 1)
 
 export const MINUTES_PER_EVENT = { long: 8, short: 0.75, impression: 0.75, like: 0.3, save: 0.3 };
 export const SESSION_GAP_MIN = 30;
@@ -69,7 +73,7 @@ export function computeMetrics(events, extra = {}) {
   const lastByShiftedDay = new Map(); // "night belongs to previous day" (day boundary 05:00)
   const channels = new Map();
   const platforms = {};
-  let late = 0, evening = 0, weekend = 0, minutes = 0, ytWatches = 0, shorts = 0;
+  let late = 0, evening = 0, weekend = 0, ytWatches = 0, shorts = 0;
 
   for (const ev of evs) {
     const p = localParts(ev);
@@ -79,7 +83,6 @@ export function computeMetrics(events, extra = {}) {
     if (p.hour < 5) late++;
     if (p.hour >= 21) evening++;
     if (p.weekday === 0 || p.weekday === 6) weekend++;
-    minutes += MINUTES_PER_EVENT[ev.kind] ?? 1;
     platforms[ev.platform || "unknown"] = (platforms[ev.platform || "unknown"] || 0) + 1;
     if (ev.platform === "youtube" && (ev.kind === "long" || ev.kind === "short")) {
       ytWatches++;
@@ -98,7 +101,7 @@ export function computeMetrics(events, extra = {}) {
   const dayKeys = [...days.keys()].sort();
   const firstDay = dayNum(dayKeys[0]);
   const lastDay = dayNum(dayKeys[dayKeys.length - 1]);
-  const rangeDays = lastDay - firstDay + 1;
+  const rangeDays = Math.max(1, lastDay - firstDay + 1);
   const activeDays = dayKeys.length;
 
   let streakDays = 1, run = 1;
@@ -122,6 +125,7 @@ export function computeMetrics(events, extra = {}) {
   }
   sessions.push(cur);
   const lengths = sessions.map((s) => (s.endTs - s.startTs) / 60000 + s.lastCost);
+  const minutes = lengths.reduce((a, l) => a + l, 0);
   let longestIdx = 0;
   lengths.forEach((l, i) => {
     if (l > lengths[longestIdx]) longestIdx = i;
@@ -144,7 +148,8 @@ export function computeMetrics(events, extra = {}) {
     totalEvents: n,
     activeDays,
     eventsPerActiveDay: r1(n / activeDays),
-    estHoursPerDay: r1(minutes / activeDays / 60),
+    estHoursPerActiveDay: r1(minutes / activeDays / 60),
+    estHoursPerDay: r1(minutes / rangeDays / 60),
     lateNightShare: r3(late / n),
     eveningShare: r3(evening / n),
     weekendShare: r3(weekend / n),

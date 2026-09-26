@@ -42,7 +42,7 @@ export default function Planner({ plan, goal, analysis, metrics, onReset, onProg
       {analysis && analysis.screenTimeTargetHoursPerDay != null && (
         <div style={{ fontSize: 13, color: C.accent, marginBottom: 12 }} data-testid="planner-target">
           Target: ≤ {analysis.screenTimeTargetHoursPerDay} h/day
-          {metrics && metrics.estHoursPerDay != null ? <span style={{ color: C.muted }}> · now ~{metrics.estHoursPerDay} h/day</span> : null}
+          {metrics && (metrics.estHoursPerActiveDay ?? metrics.estHoursPerDay) != null ? <span style={{ color: C.muted }}> · now ~{metrics.estHoursPerActiveDay ?? metrics.estHoursPerDay} h/active day</span> : null}
         </div>
       )}
       {analysis && (metrics || (analysis.habits || []).length > 0) && (

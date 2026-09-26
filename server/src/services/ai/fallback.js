@@ -38,11 +38,25 @@ export function contentMinutesFor(targetHours) {
   return Math.min(180, Math.max(45, m));
 }
 
-/** First-week screen-time target: max(1, estHoursPerDay * 0.7), 1 decimal; 2 h when unknown. */
+/** Current use in h per active day (self-reports only have estHoursPerDay). 0 when unknown. */
+export function currentHours(metrics) {
+  if (!metrics) return 0;
+  const v = Number(metrics.estHoursPerActiveDay ?? metrics.estHoursPerDay);
+  return Number.isFinite(v) && v > 0 ? v : 0;
+}
+
+const q25 = (h) => Math.round(h * 4) / 4;
+
+/**
+ * First-week screen-time target, never above current use. current <= 1 h -> hold at current
+ * (rounded down to 0.25 so it can't exceed it, min 0.25); else max(1, current * 0.7) rounded to
+ * 0.25 (capped at current). 2 h when unknown.
+ */
 export function defaultTarget(metrics) {
-  const est = metrics && Number(metrics.estHoursPerDay);
-  if (!est) return 2;
-  return Math.max(1, Math.round(est * 0.7 * 10) / 10);
+  const cur = currentHours(metrics);
+  if (!cur) return 2;
+  if (cur <= 1) return Math.max(0.25, Math.floor(cur * 4) / 4);
+  return Math.min(q25(Math.max(1, cur * 0.7)), cur);
 }
 
 /**
@@ -222,12 +236,12 @@ export function habitsFromMetrics(m) {
       evidence: `${pct(late)} of activity after midnight${m.lastActivityHour != null ? `; last activity typically ${fmtHour(m.lastActivityHour)}` : ""}.`,
     });
   }
-  const hrs = m.estHoursPerDay || 0;
+  const hrs = currentHours(m);
   if (hrs > 2.5) {
     H.push({
       name: "Heavy daily screen time",
       severity: hrs > 4 ? "high" : "medium",
-      evidence: `~${hrs} h/day${m.activeDays ? ` across ${m.activeDays} active days` : " (self-reported)"}.`,
+      evidence: `~${hrs} h${m.activeDays ? ` per active day across ${m.activeDays} active days` : "/day (self-reported)"}.`,
     });
   }
   const longest = m.sessions ? m.sessions.longestSessionMinutes : 0;
@@ -279,7 +293,7 @@ export function buildAnalysisFromMetrics(m, rawContentExcerpt = "") {
   const top = m && m.topChannels && m.topChannels[0];
   const p1 = interests.primary[0];
   const target = defaultTarget(m);
-  const hrs = m && m.estHoursPerDay;
+  const hrs = currentHours(m);
   let insight, question;
   const S = m && m.sessions;
   switch (worst.name) {
@@ -342,7 +356,7 @@ export function buildGoalsFrom(analysis, m) {
   const prim = nodes.filter((n) => n.tier === "primary").sort((a, b) => b.weight - a.weight);
   const p1 = prim[0] ? prim[0].label : "your main interest";
   const target = analysis.screenTimeTargetHoursPerDay || defaultTarget(m);
-  const hrs = m && m.estHoursPerDay;
+  const hrs = currentHours(m);
   const habits = analysis.habits || habitsFromMetrics(m);
   const worst = habits[0] ? habits[0].name : "";
   const goals = [
@@ -379,7 +393,7 @@ export function buildPlanFrom(analysis, goal, m) {
   const p1 = prim[0] ? prim[0].label : "your main interest";
   const late = (m && m.lateNightShare) || 0;
   const longest = m && m.sessions ? m.sessions.longestSessionMinutes : 0;
-  const hrs = m && m.estHoursPerDay;
+  const hrs = currentHours(m);
   const peak = m && m.peakHour != null ? m.peakHour : null;
   // Buckets used to pick task variants deterministically.
   const lateB = late > 0.2 ? 2 : late > 0.1 ? 1 : 0;
@@ -403,7 +417,7 @@ export function buildPlanFrom(analysis, goal, m) {
       shortsB ? "Long-form only. Shorts and Reels stay blocked." : pick(["Pick the videos before you open the app — no browsing the feed", "Watch from Watch Later only; the home feed stays closed", "Autoplay off before you press play"], peakB),
       "When the timer rings, close the app and log one takeaway",
     ],
-    note: `${D} minutes is your whole budget (${target} h/day target${hrs ? `, down from ~${hrs} h` : ""}). Outside this window, your attention is not for sale.`,
+    note: `${D} minutes is your whole budget (${target} h/day target = ${Math.round(target * 60)} min${hrs ? `, now ~${hrs} h` : ""}${Math.round(target * 60) < D ? `; stop at ${Math.round(target * 60)} min if you can` : ""}). Outside this window, your attention is not for sale.`,
   };
   c.EVENING = {
     tasks: [

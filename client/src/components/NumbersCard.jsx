@@ -41,7 +41,7 @@ export function NumbersCard({ metrics, habits = [], target, collapsible = false,
   const m = metrics || {};
   const s = m.sessions;
   const stats = [
-    ["H / day", m.estHoursPerDay != null ? `${m.estHoursPerDay}` : "—", "h-day"],
+    ["H / active day", (m.estHoursPerActiveDay ?? m.estHoursPerDay) != null ? `${m.estHoursPerActiveDay ?? m.estHoursPerDay}` : "—", "h-day"],
     ["After midnight", pct(m.lateNightShare), "late-night"],
     ["Longest binge", s ? fmtMin(s.longestSessionMinutes) : "—", "longest"],
     ["Active days / streak", m.activeDays != null ? `${m.activeDays} / ${m.streakDays}` : "—", "days"],
