@@ -19,6 +19,7 @@ const GLOBAL_CSS = `
 *, *::before, *::after { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; background: ${C.bg}; color: ${C.text}; font-family: ${FONT}; overflow-x: hidden; -webkit-font-smoothing: antialiased; }
 button, input, textarea, select { font-family: inherit; }
+button, input, textarea, select { border-radius: 0; }
 ::placeholder { color: #444; }
 ::selection { background: ${C.accent}; color: ${C.bg}; }
 @keyframes auditSpin { to { transform: rotate(360deg); } }
@@ -419,7 +420,8 @@ function makeFallbackPlan(goalTitle, nodes) {
 function mergePlan(raw, fb) {
   const daily = SKELETON.map((b, i) => {
     if (b.rest) return { ...b, tasks: [], note: "" };
-    const src = raw && Array.isArray(raw.daily) ? raw.daily[i] : null;
+    const list = raw && Array.isArray(raw.daily) ? raw.daily : [];
+    const src = list.find((x) => x && (x.tag === b.tag || x.time === b.time)) || list[i] || null;
     const tasks = strList(src && src.tasks, 5);
     return {
       ...b,
@@ -517,7 +519,6 @@ const S = {
     fontSize: 14,
     outline: "none",
     width: "100%",
-    borderRadius: 0,
   },
   h2: { fontSize: 26, fontWeight: 600, margin: "0 0 8px", letterSpacing: "-0.01em", lineHeight: 1.2 },
   sub: { fontSize: 14, color: C.muted, margin: 0, lineHeight: 1.6 },
@@ -526,7 +527,6 @@ const S = {
 function Btn({ children, onClick, disabled, variant = "primary", style, ...rest }) {
   const base = {
     border: "1px solid transparent",
-    borderRadius: 0,
     padding: "13px 22px",
     fontSize: 13,
     fontWeight: 600,
@@ -577,7 +577,6 @@ function Toggle({ options, value, onChange, testId }) {
               textTransform: "uppercase",
               border: "none",
               borderLeft: i ? `1px solid ${C.border}` : "none",
-              borderRadius: 0,
               background: on ? C.accent : "transparent",
               color: on ? C.bg : C.muted,
               cursor: "pointer",
@@ -1078,7 +1077,7 @@ function Graph({ nodes, onMove, onRemove, isMobile }) {
       ref={svgRef}
       data-testid="brain-graph"
       viewBox={`0 0 ${W} ${H}`}
-      style={{ width: "100%", height: "auto", display: "block", background: C.surface, border: `1px solid ${C.border}`, userSelect: "none", WebkitUserSelect: "none" }}
+      style={{ width: "100%", height: "auto", display: "block", background: C.surface, border: `1px solid ${C.border}`, userSelect: "none", WebkitUserSelect: "none", touchAction: "none" }}
       onMouseMove={(e) => moveDrag(e.clientX, e.clientY)}
       onMouseUp={endDrag}
       onMouseLeave={() => {
@@ -1347,7 +1346,6 @@ function Goals({ goalMode, onSuggest, onOwn, suggestions, loading, selected, set
           color: C.text,
           borderColor: on ? C.accent : C.border,
           background: on ? "rgba(232,255,0,0.04)" : C.surface,
-          borderRadius: 0,
         }}
       >
         <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 6, color: on ? C.accent : C.text }}>{title}</div>
@@ -1386,7 +1384,6 @@ function Goals({ goalMode, onSuggest, onOwn, suggestions, loading, selected, set
                       cursor: "pointer",
                       color: C.text,
                       borderColor: on ? C.accent : C.border,
-                      borderRadius: 0,
                       animation: "auditFade 300ms ease",
                     }}
                   >
@@ -1744,6 +1741,7 @@ function AuditApp({ onReset }) {
   const [customGoal, setCustomGoal] = useState("");
   const [goal, setGoal] = useState(null);
   const [plan, setPlan] = useState(null);
+  const suggestReq = useRef(0);
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -1761,6 +1759,7 @@ function AuditApp({ onReset }) {
     setStep(3);
   }
   function toGoals() {
+    suggestReq.current++;
     setSuggestions(null);
     setSelectedGoal(null);
     setSuggestLoading(false);
@@ -1770,9 +1769,12 @@ function AuditApp({ onReset }) {
   async function requestSuggestions() {
     setGoalMode("suggest");
     if (suggestions || suggestLoading) return;
+    const req = ++suggestReq.current;
     setSuggestLoading(true);
     const g = await withMinDelay(suggestGoals(nodes, analysis, answer), 1500);
+    if (req !== suggestReq.current) return;
     setSuggestions(g);
+    setSelectedGoal(null);
     setSuggestLoading(false);
   }
   async function buildPlan() {
