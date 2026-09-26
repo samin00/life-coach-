@@ -8,8 +8,9 @@ import { BrainGraph as Graph } from "../components/BrainGraph.jsx";
 import { ListView } from "../components/ListView.jsx";
 import { AddNodeForm } from "../components/AddNodeForm.jsx";
 import { placeNewNode } from "../lib/layout.js";
+import { NumbersCard } from "../components/NumbersCard.jsx";
 
-export default function BrainMap({ nodes, setNodes, insight, onNext, busy, isMobile }) {
+export default function BrainMap({ nodes, setNodes, insight, analysis, metrics, onNext, busy, isMobile }) {
   const [view, setView] = useState("graph");
   const [flash, setFlash] = useState(null);
   useEffect(() => {
@@ -66,9 +67,14 @@ export default function BrainMap({ nodes, setNodes, insight, onNext, busy, isMob
         <AccuracyBar label="Map quality" value={quality} caption={`${nodes.length} node${nodes.length === 1 ? "" : "s"} mapped.`} />
         <div style={{ ...S.card, padding: 16, borderLeft: `2px solid ${C.accent}` }}>
           <div style={{ ...S.label, color: C.accent, marginBottom: 8 }}>Audit insight</div>
-          <div style={{ fontSize: 13, lineHeight: 1.6 }}>{insight}</div>
+          <div style={{ fontSize: 13, lineHeight: 1.6 }} data-testid="audit-insight">{insight}</div>
         </div>
       </div>
+      {analysis && (metrics || (analysis.habits || []).length > 0) && (
+        <div style={{ marginTop: 12 }}>
+          <NumbersCard collapsible testId="map-numbers" metrics={metrics} habits={analysis.habits || []} target={analysis.screenTimeTargetHoursPerDay} />
+        </div>
+      )}
 
       <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 28 }}>
         <Btn onClick={onNext} disabled={busy || nodes.length === 0}>

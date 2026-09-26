@@ -2,8 +2,9 @@ import React from "react";
 import { C, S } from "../styles/tokens.js";
 import { Btn } from "../components/Btn.jsx";
 import { Loader } from "../components/Loader.jsx";
+import { NumbersCard } from "../components/NumbersCard.jsx";
 
-export default function Analysis({ analysis, answer, setAnswer, onContinue, onSkip, busy }) {
+export default function Analysis({ analysis, metrics, answer, setAnswer, onContinue, onSkip, busy }) {
   if (!analysis) {
     return <Loader messages={["Reading your data...", "Extracting patterns...", "Identifying interest clusters..."]} />;
   }
@@ -15,6 +16,9 @@ export default function Analysis({ analysis, answer, setAnswer, onContinue, onSk
       <p style={{ ...S.sub, marginBottom: 28 }}>
         {interests.length} interest clusters detected. Before the map, one question.
       </p>
+      <div style={{ marginBottom: 12 }}>
+        <NumbersCard metrics={metrics} habits={analysis.habits || []} target={analysis.screenTimeTargetHoursPerDay} />
+      </div>
       <div style={{ ...S.card, borderColor: C.accent, padding: 24 }} data-testid="audit-question">
         <div style={{ ...S.label, color: C.accent, marginBottom: 14 }}>■ Audit detected</div>
         <div style={{ fontSize: 18, lineHeight: 1.5, fontWeight: 500 }}>{analysis.uncomfortableQuestion}</div>

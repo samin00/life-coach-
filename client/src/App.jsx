@@ -30,6 +30,9 @@ export default function App() {
   const [platform, setPlatform] = useState("youtube");
   const [files, setFiles] = useState([]);
   const [manualText, setManualText] = useState("");
+  const emptySelfReport = () => ({ hoursPerDay: "", bedtime: "", wakeTime: "", worstHabits: ["", "", ""] });
+  const [selfReport, setSelfReport] = useState(emptySelfReport);
+  const [metrics, setMetrics] = useState(null);
   // Server-backed session
   const [analysis, setAnalysis] = useState(null);
   const [answer, setAnswer] = useState("");
@@ -75,6 +78,8 @@ export default function App() {
       setPlatform(st.habitInput && st.habitInput.sourceType !== "manual" ? st.habitInput.sourceType : "youtube");
       setFiles([]);
       setManualText("");
+      setSelfReport(emptySelfReport());
+      setMetrics(st.habitInput ? st.habitInput.metrics || null : null);
       setAnalysis(a);
       setAnswer(a && a.answer ? a.answer : "");
       setNodesState(a ? layoutNodes(a.interests) : []);
@@ -136,7 +141,8 @@ export default function App() {
   }
   async function startAnalysis(accuracy) {
     const ok = await run(async () => {
-      await api.saveHabits(buildHabitsBody({ platform, files, manualText, accuracy }));
+      const h = await api.saveHabits(buildHabitsBody({ platform, files, manualText, accuracy, selfReport }));
+      setMetrics(h.metrics || null);
       return true;
     });
     if (ok) runAnalyze();
@@ -237,6 +243,8 @@ export default function App() {
                 setFiles={setFiles}
                 manualText={manualText}
                 setManualText={setManualText}
+                selfReport={selfReport}
+                setSelfReport={setSelfReport}
                 onBack={() => setStep(0)}
                 onAnalyze={startAnalysis}
                 busy={busy}
@@ -244,13 +252,15 @@ export default function App() {
               />
             )}
             {step === 2 && (
-              <Analysis analysis={analysis} answer={answer} setAnswer={setAnswer} onContinue={() => toMap(false)} onSkip={() => toMap(true)} busy={busy} />
+              <Analysis analysis={analysis} metrics={metrics} answer={answer} setAnswer={setAnswer} onContinue={() => toMap(false)} onSkip={() => toMap(true)} busy={busy} />
             )}
             {step === 3 && (
               <BrainMap
                 nodes={nodes}
                 setNodes={setNodes}
                 insight={analysis && analysis.patterns ? analysis.patterns[0] : ""}
+                analysis={analysis}
+                metrics={metrics}
                 onNext={toGoals}
                 busy={busy}
                 isMobile={isMobile}
@@ -274,7 +284,7 @@ export default function App() {
               />
             )}
             {step === 5 && (
-              <Planner key={plan ? plan.id : "pending"} plan={plan} goal={goal} onReset={startOver} onProgress={onProgress} busy={busy} isMobile={isMobile} />
+              <Planner key={plan ? plan.id : "pending"} plan={plan} goal={goal} analysis={analysis} metrics={metrics} onReset={startOver} onProgress={onProgress} busy={busy} isMobile={isMobile} />
             )}
           </div>
         )}

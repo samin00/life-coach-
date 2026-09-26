@@ -2,6 +2,7 @@ import { prisma } from "../lib/prisma.js";
 import { toJson } from "../lib/json.js";
 import * as ai from "./ai/index.js";
 import { requireAnalysis } from "./analysis.service.js";
+import { metricsForHabitInput } from "./habits.service.js";
 
 export function serializeGoal(row) {
   if (!row) return null;
@@ -21,7 +22,7 @@ export async function getGoalRow(userId) {
 
 export async function suggestGoals(userId) {
   const analysis = await requireAnalysis(userId);
-  const goals = await ai.suggestGoals(analysis);
+  const goals = await ai.suggestGoals(analysis, await metricsForHabitInput(analysis.habitInputId));
   await prisma.analysis.update({ where: { id: analysis.id }, data: { suggestions: toJson(goals) } });
   return { goals };
 }

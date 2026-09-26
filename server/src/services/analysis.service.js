@@ -16,6 +16,8 @@ export function serializeAnalysis(row) {
     uncomfortableQuestion: row.uncomfortableQuestion,
     answer: row.answer,
     suggestions: parseJson(row.suggestions, null),
+    habits: parseJson(row.habits, []),
+    screenTimeTargetHoursPerDay: row.screenTimeTarget ?? null,
   };
 }
 
@@ -40,6 +42,8 @@ export async function runAnalysis(userId) {
     uncomfortableQuestion: result.uncomfortableQuestion,
     answer: null,
     suggestions: null,
+    habits: toJson(result.habits || []),
+    screenTimeTarget: result.screenTimeTargetHoursPerDay ?? null,
   };
   const row = await prisma.analysis.upsert({
     where: { habitInputId: habitRow.id },

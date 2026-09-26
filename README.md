@@ -2,6 +2,38 @@
 
 Audit reads your YouTube/Instagram habits (exported watch history or a manual description), maps your real interests as a tiered "brain map", asks one uncomfortable question, and turns a chosen goal into a daily / weekly / monthly plan with progress tracking. Everything is persisted server-side, so a reload resumes where you left off.
 
+## What Audit measures
+
+When you upload exports, the server parses them (`server/src/services/metrics/`, pure functions) and stores a metrics object on the habit input. Every AI prompt receives these as **THE NUMBERS** and is told to cite them and name the worst habit.
+
+| Metric | Meaning |
+|---|---|
+| `estHoursPerDay` | Estimated screen time per *active* day (see assumptions below) |
+| `rangeDays`, `activeDays`, `totalEvents`, `eventsPerActiveDay` | Span of the export and how many days had any activity |
+| `lateNightShare` | Share of events between 00:00 and 05:00 |
+| `eveningShare`, `weekendShare` | Share 21:00-24:00; share on Saturday/Sunday |
+| `sessions` | Events split by gaps > 30 min: `count`, `avgLength` (min), `longestSessionMinutes` + `longestSessionDate` |
+| `topChannels` | Top 8 channels / accounts by count |
+| `topics` | Keyword buckets from titles/channels (fitness, coding, gaming, finance, cooking, music, news, ...) |
+| `shortsShare` | Share of YouTube watches that are Shorts |
+| `streakDays` | Longest run of consecutive active days |
+| `lastActivityHour` | Median time of the last event per day (day boundary 05:00) |
+| `peakHour`, `byHour[24]`, `byWeekday[7]` | Hour / weekday histograms (weekday 0 = Sunday) |
+
+**Assumptions** (exports record when something started, never for how long): YouTube long-form watch = 8 min, YouTube Short = 0.75 min, Instagram post/video impression = 0.75 min, like or save = 0.3 min. A session's length is its span plus the cost of its last event. UTC timestamps are shifted by the browser's UTC offset (sent as `tzOffsetMin`); without it they are treated as local.
+
+**Export instructions** (parsing is best-effort; unknown files are ignored):
+- YouTube: Google Takeout -> *YouTube and YouTube Music* -> history -> `watch-history.json` (or `watch-history.html`). `search-history.json` is counted.
+- Instagram: Accounts Center -> *Download your information* -> format **JSON**: `liked_posts.json`, `saved_posts.json`, `posts_viewed.json`, `videos_watched.json`, `following.json` (count only).
+
+Manual mode also takes a self-report (hours/day, bedtime, wake time, 3 worst habits). The server builds a minimal metrics object from it and flags it `selfReported`.
+
+The analysis adds `habits` (1-4, each with severity and evidence) and a first-week `screenTimeTargetHoursPerDay` (default `max(1, estHoursPerDay x 0.7)`). The plan's CONTENT WINDOW equals that target (45-180 min). Later blocks shift, and FREE TIME shrinks (then EVENING, then AFTERNOON) so that sleep still starts at 21:00. Heavy late-night use (> 20%) adds phone-out-of-the-bedroom tasks to WIND DOWN and SLEEP. A session over 120 min adds a hard binge cap. Weekly and monthly goals always include a screen-time cap.
+
+**With no AI key**, the analysis, goals and plan are rule-based from your metrics (`services/ai/fallback.js`), so different data gives different output. The static demo output is used only when there are no metrics and no text at all.
+
+`npm test --prefix server` runs the metric and fallback unit tests (`server/test/`). These include a synthetic watch history of about 600 events, built by `server/test/fixtures/generate.js`.
+
 ## Architecture
 
 ```
@@ -61,7 +93,7 @@ Runs client on http://localhost:5173 and server on http://localhost:3001. `npm r
 |---|---|---|
 | GET | `/api/health` | `{ ok: true }` |
 | GET | `/api/state` | Current step, habitInput, analysis, goal, plan, AI provider info |
-| POST | `/api/habits` | Save habit input (201); resets downstream data |
+| POST | `/api/habits` | Save habit input (201). Optional `files[].text`, `selfReport` and `tzOffsetMin`. Computes and returns `metrics`; resets downstream data |
 | POST | `/api/analyze` | Run analysis (201; rate limited; 409 without habits) |
 | PATCH | `/api/analysis` | Edit interests / answer; clears cached suggestions |
 | POST | `/api/goals/suggest` | Suggest goals, cached on analysis (rate limited) |
@@ -77,7 +109,7 @@ Out-of-order steps return 409. Errors use `{ error: { code, message } }`.
 
 - AI keys live only in `server/.env`; never use `VITE_` vars for secrets, and the browser never calls AI providers directly.
 - AI endpoints are rate limited to 20 requests / 15 min per IP (429 with the standard error shape).
-- JSON body limit 1 MB; `rawContent` capped at 200,000 chars; all input is validated with zod.
+- JSON body limit 2 MB. `rawContent` is capped at 200,000 chars. Per-file text is used only to compute metrics and is not stored; it is capped at 1.5M chars per file and 1.8M in total. All input is validated with zod.
 - Error responses never include stack traces or keys.
 - SQLite is for local use only. Production needs a managed database (e.g. Postgres via Prisma) and real authentication in place of the demo user.
 

@@ -14,6 +14,11 @@ export const AnalysisAiSchema = z.object({
   }),
   patterns: z.array(z.string()).optional(),
   summary: z.string().optional(),
+  habits: z
+    .array(z.object({ name: nonEmpty, severity: z.enum(["low", "medium", "high"]), evidence: nonEmpty }).passthrough())
+    .min(1)
+    .max(6),
+  screenTimeTargetHoursPerDay: z.coerce.number().min(0.25).max(24).optional(),
 });
 
 export const GoalsAiSchema = z.object({

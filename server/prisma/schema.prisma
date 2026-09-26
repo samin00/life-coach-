@@ -33,7 +33,8 @@ model HabitInput {
   user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   sourceType String
   rawContent String
-  meta       String    // json: { files: [{name,size,kind}], accuracy }
+  meta       String    // json: { files: [{name,size,kind}], accuracy, selfReport? }
+  metrics    String?   // json: usage metrics computed on save (services/metrics), or synthesized from selfReport
   createdAt  DateTime  @default(now())
   analysis   Analysis?
 
@@ -52,6 +53,8 @@ model Analysis {
   uncomfortableQuestion String
   answer                String?
   suggestions           String?    // json {title,description}[]
+  habits                String?    // json {name,severity,evidence}[]
+  screenTimeTarget      Float?     // first-week target, hours/day
   createdAt             DateTime   @default(now())
 
   @@index([userId])

@@ -4,6 +4,7 @@ import { AppError } from "../middleware/errorHandler.js";
 import * as ai from "./ai/index.js";
 import { requireAnalysis } from "./analysis.service.js";
 import { getGoalRow, serializeGoal } from "./goals.service.js";
+import { metricsForHabitInput } from "./habits.service.js";
 
 const emptyProgress = () => ({ tasksDone: {}, weeklyDone: [false, false, false, false, false], monthlyProgress: [0, 0, 0, 0, 0] });
 
@@ -37,7 +38,8 @@ export async function createPlan(userId) {
   const analysis = await requireAnalysis(userId);
   const goalRow = await getGoalRow(userId);
   if (!goalRow) throw new AppError(409, "NO_GOAL", "Choose a goal first");
-  const plan = await ai.generatePlan({ analysis, goal: serializeGoal(goalRow) });
+  const metrics = await metricsForHabitInput(analysis.habitInputId);
+  const plan = await ai.generatePlan({ analysis, goal: serializeGoal(goalRow), metrics });
   const data = {
     dailyPlan: toJson(plan.daily),
     weeklyPlan: toJson(plan.weekly),

@@ -53,7 +53,8 @@ export function Daily({ plan, done, toggleTask, isMobile }) {
         <div style={{ position: "absolute", left: isMobile ? 56 : 72, top: 8, bottom: 8, width: 1, background: C.border }} />
         {plan.daily.map((b, i) => {
           const isNow = i === current;
-          const open = expanded === i && !b.rest;
+          const fixed = b.tasks.length === 0; // rest blocks without tasks are not expandable
+          const open = expanded === i && !fixed;
           const blockDone = b.tasks.filter((_, j) => done[`${i}-${j}`]).length;
           return (
             <div key={i} style={{ display: "flex", gap: isMobile ? 10 : 14, marginBottom: 8, opacity: b.rest && !isNow ? 0.45 : 1 }} data-block={b.title}>
@@ -69,12 +70,12 @@ export function Daily({ plan, done, toggleTask, isMobile }) {
                   />
                 )}
                 <div
-                  role={b.rest ? undefined : "button"}
-                  tabIndex={b.rest ? undefined : 0}
-                  aria-expanded={b.rest ? undefined : open}
-                  onClick={b.rest ? undefined : () => setExpanded(open ? null : i)}
+                  role={fixed ? undefined : "button"}
+                  tabIndex={fixed ? undefined : 0}
+                  aria-expanded={fixed ? undefined : open}
+                  onClick={fixed ? undefined : () => setExpanded(open ? null : i)}
                   onKeyDown={
-                    b.rest
+                    fixed
                       ? undefined
                       : (e) => {
                           if (e.key === "Enter" || e.key === " ") {
@@ -90,7 +91,7 @@ export function Daily({ plan, done, toggleTask, isMobile }) {
                     outline: isNow ? `1px solid rgba(232,255,0,0.25)` : "none",
                     outlineOffset: 2,
                     padding: "12px 14px",
-                    cursor: b.rest ? "default" : "pointer",
+                    cursor: fixed ? "default" : "pointer",
                   }}
                 >
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
@@ -102,8 +103,8 @@ export function Daily({ plan, done, toggleTask, isMobile }) {
                       <div style={{ fontSize: 14, fontWeight: 500 }}>{b.title}</div>
                     </div>
                     <div style={{ textAlign: "right", flexShrink: 0 }}>
-                      <div style={{ fontSize: 11, color: C.muted }}>{fmtDuration(b.duration)}</div>
-                      {!b.rest && (
+                      <div style={{ fontSize: 11, color: C.muted }} data-testid="block-duration">{fmtDuration(b.duration)}</div>
+                      {!fixed && (
                         <div style={{ fontSize: 11, color: blockDone === b.tasks.length ? C.accent : "#444", marginTop: 3 }}>
                           {blockDone}/{b.tasks.length} {open ? "▴" : "▾"}
                         </div>

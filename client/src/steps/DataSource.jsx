@@ -3,10 +3,10 @@ import { C, S } from "../styles/tokens.js";
 import { Btn, RemoveBtn } from "../components/Btn.jsx";
 import { Toggle } from "../components/Toggle.jsx";
 import { AccuracyBar } from "../components/AccuracyBar.jsx";
-import { ACCEPT_RE, readFileExcerpt, fmtSize } from "../lib/files.js";
+import { ACCEPT_RE, readFileExcerpt, readFileFull, fmtSize } from "../lib/files.js";
 import { newId } from "../lib/layout.js";
 
-export default function DataSource({ platform, setPlatform, files, setFiles, manualText, setManualText, onBack, onAnalyze, busy, isMobile }) {
+export default function DataSource({ platform, setPlatform, files, setFiles, manualText, setManualText, selfReport, setSelfReport, onBack, onAnalyze, busy, isMobile }) {
   const [dragOver, setDragOver] = useState(false);
   const [rejected, setRejected] = useState([]);
   const inputRef = useRef(null);
@@ -23,8 +23,8 @@ export default function DataSource({ platform, setPlatform, files, setFiles, man
         return [...fs, { id, name: file.name, size: file.size, kind, text: null, status: kind === "zip" ? "archive" : "reading" }];
       });
       if (kind !== "zip") {
-        readFileExcerpt(file).then((text) =>
-          setFiles((fs) => fs.map((f) => (f.id === id ? { ...f, text, status: text ? "ready" : "empty" } : f)))
+        Promise.all([readFileExcerpt(file), readFileFull(file)]).then(([text, full]) =>
+          setFiles((fs) => fs.map((f) => (f.id === id ? { ...f, text, full, status: text ? "ready" : "empty" } : f)))
         );
       }
     });
@@ -117,8 +117,8 @@ export default function DataSource({ platform, setPlatform, files, setFiles, man
               ))}
             </div>
           )}
-          <div style={{ fontSize: 11, color: "#4a4a4a", marginTop: 14, lineHeight: 1.6 }}>
-            YouTube: Google Takeout → YouTube → history. Instagram: Accounts Center → Download your information (JSON).
+          <div style={{ fontSize: 11, color: "#4a4a4a", marginTop: 14, lineHeight: 1.6 }} data-testid="export-hint">
+            YouTube: Takeout → YouTube and YouTube Music → history → watch-history.json. Instagram: Download your information → JSON.
           </div>
         </div>
 
@@ -135,6 +135,42 @@ export default function DataSource({ platform, setPlatform, files, setFiles, man
           />
           <div style={{ fontSize: 11, color: manualText.trim().length >= 20 ? C.muted : "#444", marginTop: 8 }}>
             {manualText.trim().length} chars {manualText.trim().length < 20 ? "· min 20" : ""}
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginTop: 12 }}>
+            {[
+              ["hoursPerDay", "H / day", "number", "sr-hours"],
+              ["bedtime", "Bedtime", "time", "sr-bedtime"],
+              ["wakeTime", "Wake", "time", "sr-wake"],
+            ].map(([k, label, type, tid]) => (
+              <label key={k} style={{ display: "block", minWidth: 0 }}>
+                <span style={{ ...S.label, fontSize: 10, display: "block", marginBottom: 4 }}>{label}</span>
+                <input
+                  type={type}
+                  data-testid={tid}
+                  value={selfReport[k]}
+                  min={type === "number" ? 0 : undefined}
+                  max={type === "number" ? 24 : undefined}
+                  step={type === "number" ? 0.5 : undefined}
+                  placeholder={type === "number" ? "4" : undefined}
+                  onChange={(e) => setSelfReport((r) => ({ ...r, [k]: e.target.value }))}
+                  style={{ ...S.input, padding: "8px 8px", fontSize: 13, colorScheme: "dark" }}
+                />
+              </label>
+            ))}
+          </div>
+          <div style={{ ...S.label, fontSize: 10, margin: "10px 0 4px" }}>3 worst habits</div>
+          <div style={{ display: "grid", gap: 6 }}>
+            {[0, 1, 2].map((i) => (
+              <input
+                key={i}
+                data-testid={`sr-habit-${i}`}
+                value={selfReport.worstHabits[i]}
+                maxLength={80}
+                placeholder={["e.g. scrolling in bed", "e.g. Shorts at lunch", "e.g. autoplay binges"][i]}
+                onChange={(e) => setSelfReport((r) => ({ ...r, worstHabits: r.worstHabits.map((w, j) => (j === i ? e.target.value : w)) }))}
+                style={{ ...S.input, padding: "8px 10px", fontSize: 13 }}
+              />
+            ))}
           </div>
           {manualActive && (
             <div data-testid="manual-warning" style={{ marginTop: 12, border: `1px solid #ff8a3d`, color: "#ff8a3d", padding: "10px 12px", fontSize: 12, letterSpacing: "0.04em" }}>

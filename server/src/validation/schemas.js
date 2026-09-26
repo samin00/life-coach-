@@ -2,6 +2,19 @@
 import { z } from "zod";
 
 export const MAX_RAW_CONTENT = 200_000;
+export const MAX_FILE_TEXT = 1_500_000;
+export const MAX_TOTAL_FILE_TEXT = 1_800_000;
+
+const HHMM = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "time must be HH:MM");
+
+export const SelfReport = z
+  .object({
+    hoursPerDay: z.number().min(0).max(24).optional(),
+    worstHabits: z.array(z.string().trim().max(80)).max(3).optional().default([]),
+    bedtime: HHMM.optional(),
+    wakeTime: HHMM.optional(),
+  })
+  .strict();
 
 export const HabitInputBody = z
   .object({
@@ -13,12 +26,19 @@ export const HabitInputBody = z
           name: z.string().min(1).max(255),
           size: z.number().int().nonnegative(),
           kind: z.enum(["json", "html", "zip"]),
+          text: z.string().max(MAX_FILE_TEXT, `file text must be at most ${MAX_FILE_TEXT} characters`).optional(),
         })
       )
       .max(50)
       .optional()
-      .default([]),
+      .default([])
+      .refine(
+        (files) => files.reduce((s, f) => s + (f.text ? f.text.length : 0), 0) <= MAX_TOTAL_FILE_TEXT,
+        `total file text must be at most ${MAX_TOTAL_FILE_TEXT} characters`
+      ),
     accuracy: z.number().min(0).max(100),
+    selfReport: SelfReport.optional(),
+    tzOffsetMin: z.number().int().min(-840).max(840).optional(),
   })
   .strict();
 

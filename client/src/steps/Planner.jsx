@@ -6,8 +6,9 @@ import { Loader } from "../components/Loader.jsx";
 import { Daily } from "../components/planner/Daily.jsx";
 import { Weekly } from "../components/planner/Weekly.jsx";
 import { Monthly } from "../components/planner/Monthly.jsx";
+import { NumbersCard } from "../components/NumbersCard.jsx";
 
-export default function Planner({ plan, goal, onReset, onProgress, busy, isMobile }) {
+export default function Planner({ plan, goal, analysis, metrics, onReset, onProgress, busy, isMobile }) {
   const [tab, setTab] = useState("daily");
   const progress = (plan && plan.progress) || {};
   const [done, setDone] = useState(() => ({ ...(progress.tasksDone || {}) }));
@@ -37,7 +38,18 @@ export default function Planner({ plan, goal, onReset, onProgress, busy, isMobil
   return (
     <div style={{ animation: "auditFade 300ms ease" }}>
       <div style={{ ...S.label, color: C.accent, marginBottom: 10 }}>Your plan</div>
-      <h2 style={{ ...S.h2, marginBottom: 24 }}>{goal.title}</h2>
+      <h2 style={{ ...S.h2, marginBottom: 12 }}>{goal.title}</h2>
+      {analysis && analysis.screenTimeTargetHoursPerDay != null && (
+        <div style={{ fontSize: 13, color: C.accent, marginBottom: 12 }} data-testid="planner-target">
+          Target: ≤ {analysis.screenTimeTargetHoursPerDay} h/day
+          {metrics && metrics.estHoursPerDay != null ? <span style={{ color: C.muted }}> · now ~{metrics.estHoursPerDay} h/day</span> : null}
+        </div>
+      )}
+      {analysis && (metrics || (analysis.habits || []).length > 0) && (
+        <div style={{ marginBottom: 24 }}>
+          <NumbersCard collapsible testId="planner-numbers" metrics={metrics} habits={analysis.habits || []} target={analysis.screenTimeTargetHoursPerDay} />
+        </div>
+      )}
       <div style={{ marginBottom: 24 }}>
         <Toggle testId="planner-tabs" value={tab} onChange={setTab} options={[["daily", "Daily"], ["weekly", "Weekly"], ["monthly", "Monthly"]]} />
       </div>
