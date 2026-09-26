@@ -1,9 +1,13 @@
 {
-  "name": "audit-app",
-  "version": "1.0.0",
+  "name": "audit",
   "private": true,
-  "type": "module",
-  "scripts": { "dev": "vite", "build": "vite build", "preview": "vite preview" },
-  "dependencies": { "react": "^18.3.0", "react-dom": "^18.3.0" },
-  "devDependencies": { "vite": "^5.4.0", "@vitejs/plugin-react": "^4.3.0" }
+  "scripts": {
+    "install:all": "npm install --prefix client && npm install --prefix server",
+    "dev": "concurrently -n client,server -c cyan,yellow \"npm run dev --prefix client\" \"npm run dev --prefix server\"",
+    "build": "npm run build --prefix client",
+    "db:migrate": "npm run prisma:migrate --prefix server"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
 }

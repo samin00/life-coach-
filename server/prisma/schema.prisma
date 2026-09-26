@@ -1,0 +1,90 @@
+// Audit — Prisma schema (SQLite).
+// JSON payloads are stored as String columns and parsed in the service layer.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// AUTH PLUG-IN POINT
+// Today a single demo user is find-or-created by src/middleware/demoUser.js.
+// When real auth is added, extend User (email, passwordHash / providerId,
+// sessions, etc.) and replace the demoUser middleware with one that resolves
+// the authenticated user. Every other model already hangs off userId.
+// ---------------------------------------------------------------------------
+model User {
+  id           String       @id @default(cuid())
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  habitInputs  HabitInput[]
+  analyses     Analysis[]
+  goals        Goal[]
+  plans        Plan[]
+}
+
+model HabitInput {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sourceType String
+  rawContent String
+  meta       String    // json: { files: [{name,size,kind}], accuracy }
+  createdAt  DateTime  @default(now())
+  analysis   Analysis?
+
+  @@index([userId])
+}
+
+model Analysis {
+  id                    String     @id @default(cuid())
+  userId                String
+  user                  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  habitInputId          String     @unique
+  habitInput            HabitInput @relation(fields: [habitInputId], references: [id], onDelete: Cascade)
+  interests             String     // json InterestNode[]
+  patterns              String     // json string[]
+  summary               String
+  uncomfortableQuestion String
+  answer                String?
+  suggestions           String?    // json {title,description}[]
+  createdAt             DateTime   @default(now())
+
+  @@index([userId])
+}
+
+model Goal {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  status      String   @default("active")
+  source      String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  plan        Plan?
+
+  @@index([userId])
+}
+
+model Plan {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  goalId      String   @unique
+  goal        Goal     @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  dailyPlan   String   // json DailyBlock[16]
+  weeklyPlan  String   // json {label,category}[5]
+  monthlyPlan String   // json {title,category}[5]
+  notes       String   // json { weeklyNote, monthlyNote }
+  progress    String   // json { tasksDone, weeklyDone, monthlyProgress }
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
+}
